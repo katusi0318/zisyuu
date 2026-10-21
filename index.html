@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GTA VI: Vice Farm City</title>
+  <style>
+    :root {
+      --bg-color: #0b0c10;
+      --card-bg: #1f2833;
+      --accent-color: #00ffcc;
+      --pink-neon: #ff007f;
+      --text-color: #ffffff;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      margin: 0;
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1 {
+      color: var(--pink-neon);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      text-shadow: 0 0 10px var(--pink-neon);
+      margin-bottom: 5px;
+      font-size: 28px;
+    }
+
+    .subtitle {
+      color: var(--accent-color);
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--accent-color);
+      border-radius: 12px;
+      padding: 20px;
+      width: 100%;
+      max-width: 450px;
+      box-shadow: 0 0 15px rgba(0, 255, 204, 0.2);
+      margin-bottom: 20px;
+      box-sizing: border-box;
+    }
+
+    button {
+      width: 100%;
+      background: linear-gradient(45deg, var(--pink-neon), #purple);
+      border: none;
+      color: white;
+      padding: 12px;
+      font-size: 16px;
+      font-weight: bold;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: 0.2s;
+    }
+
+    button:hover {
+      opacity: 0.9;
+      transform: scale(1.02);
+    }
+
+    .btn-secondary {
+      background: #333;
+      border: 1px solid var(--accent-color);
+    }
+
+    .btn-danger {
+      background: #ff4444;
+    }
+
+    .status-box {
+      display: flex;
+      justify-content: space-around;
+      background: #111;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+    }
+
+    .status-item {
+      text-align: center;
+    }
+
+    .status-value {
+      font-size: 22px;
+      color: var(--accent-color);
+      font-weight: bold;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 10px;
+      margin-top: 8px;
+      border-radius: 6px;
+      border: 1px solid var(--accent-color);
+      background: #111;
+      color: white;
+      box-sizing: border-box;
+    }
+
+    ol {
+      padding-left: 20px;
+      text-align: left;
+    }
+
+    li {
+      margin-bottom: 8px;
+      color: #ddd;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>GTA VI: Vice Farm</h1>
+  <div class="subtitle">〜 裏社会の農園キング 〜</div>
+
+  <!-- ログインエリア -->
+  <div id="login-section" class="card">
+    <h2>Googleログイン</h2>
+    <p>街でのミッションを開始するにはアカウント認証が必要です。</p>
+    <button id="btn-login">Googleでログインしてプレイ</button>
+  </div>
+
+  <!-- メインゲームエリア -->
+  <div id="game-section" class="card" style="display: none;">
+    <div id="user-display"></div>
+
+    <div class="status-box">
+      <div class="status-item">
+        <div>資金</div>
+        <div id="money-val" class="status-value">$0</div>
+      </div>
+      <div class="status-item">
+        <div>収穫量</div>
+        <div id="crops-val" class="status-value">0 kg</div>
+      </div>
+    </div>
+
+    <h3>🌾 農業ミッション</h3>
+    <button id="btn-farm">特級作物を収穫する (収穫+10kg)</button>
+    <button id="btn-sell" class="btn-secondary">作物を闇ルートで出荷する (資金+$100)</button>
+
+    <h3>📝 プレイヤー情報の編集（加点機能）</h3>
+    <label for="player-name-input">裏社会でのコードネーム:</label>
+    <input type="text" id="player-name-input" placeholder="名前を入力">
+    <button id="btn-update-name" class="btn-secondary">コードネーム変更</button>
+
+    <br><br>
+    <button id="btn-reset" class="btn-danger">データリセット（初期化）</button>
+    <button id="btn-logout" class="btn-secondary">ログアウト</button>
+  </div>
+
+  <!-- ランキング表示エリア（加点機能） -->
+  <div id="ranking-section" class="card" style="display: none;">
+    <h3>🏆 全国のボスランキング</h3>
+    <ol id="ranking-list"></ol>
+  </div>
+
+  <!-- Firebase Script -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    // Firebase設定
+    const firebaseConfig = {
+      apiKey: "AIzaSyCgDD5KHeP9F8KUKJNw2MoqbgqboMbnXgU",
+      authDomain: "zisyu1.firebaseapp.com",
+      projectId: "zisyu1",
+      storageBucket: "zisyu1.firebasestorage.app",
+      messagingSenderId: "977101155156",
+      appId: "1:977101155156:web:edb2283bb33055090e76c1"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const provider = new GoogleAuthProvider();
+
+    let currentUser = null;
+    let playerData = { name: "", money: 0, crops: 0 };
+
+    // HTML要素取得
+    const loginSection = document.getElementById("login-section");
+    const gameSection = document.getElementById("game-section");
+    const rankingSection = document.getElementById("ranking-section");
+    const userDisplay = document.getElementById("user-display");
+    const moneyVal = document.getElementById("money-val");
+    const cropsVal = document.getElementById("crops-val");
+    const nameInput = document.getElementById("player-name-input");
+    const rankingList = document.getElementById("ranking-list");
+
+    // ログイン
+    document.getElementById("btn-login").addEventListener("click", () => {
+      signInWithPopup(auth, provider).catch(err => alert("ログインエラー: " + err.message));
+    });
+
+    // ログアウト
+    document.getElementById("btn-logout").addEventListener("click", () => signOut(auth));
+
+    // 認証状態の監視
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        currentUser = user;
+        loginSection.style.display = "none";
+        gameSection.style.display = "block";
+        rankingSection.style.display = "block";
+
+        await loadPlayerData(user.uid, user.displayName);
+        await loadRanking();
+      } else {
+        currentUser = null;
+        loginSection.style.display = "block";
+        gameSection.style.display = "none";
+        rankingSection.style.display = "none";
+      }
+    });
+
+    // データの読み込み
+    async function loadPlayerData(uid, defaultName) {
+      const docRef = doc(db, "users", uid);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        playerData = docSnap.data();
+      } else {
+        playerData = {
+          name: defaultName || "匿名ボス",
+          money: 500,
+          crops: 0
+        };
+        await setDoc(docRef, playerData);
+      }
+      updateUI();
+    }
+
+    // データの保存
+    async function savePlayerData() {
+      if (!currentUser) return;
+      const docRef = doc(db, "users", currentUser.uid);
+      await setDoc(docRef, playerData);
+      await loadRanking();
+    }
+
+    // UIの更新
+    function updateUI() {
+      userDisplay.innerHTML = `<p>プレイヤー: <strong>${playerData.name}</strong></p>`;
+      moneyVal.textContent = `$${playerData.money}`;
+      cropsVal.textContent = `${playerData.crops} kg`;
+      nameInput.value = playerData.name;
+    }
+
+    // ミッション: 収穫
+    document.getElementById("btn-farm").addEventListener("click", async () => {
+      playerData.crops += 10;
+      updateUI();
+      await savePlayerData();
+    });
+
+    // ミッション: 出荷
+    document.getElementById("btn-sell").addEventListener("click", async () => {
+      if (playerData.crops >= 10) {
+        playerData.crops -= 10;
+        playerData.money += 100;
+        updateUI();
+        await savePlayerData();
+      } else {
+        alert("作物が足りません！まずは収穫してください。");
+      }
+    });
+
+    // 名前の更新（編集機能）
+    document.getElementById("btn-update-name").addEventListener("click", async () => {
+      const newName = nameInput.value.trim();
+      if (newName) {
+        playerData.name = newName;
+        updateUI();
+        await savePlayerData();
+        alert("コードネームを変更しました！");
+      }
+    });
+
+    // データリセット（削除機能）
+    document.getElementById("btn-reset").addEventListener("click", async () => {
+      if (confirm("本当にデータを初期化しますか？")) {
+        const docRef = doc(db, "users", currentUser.uid);
+        await deleteDoc(docRef);
+        playerData = { name: currentUser.displayName, money: 500, crops: 0 };
+        await savePlayerData();
+        alert("データをリセットしました。");
+      }
+    });
+
+    // ランキングの読み込み（他ユーザーデータの表示）
+    async function loadRanking() {
+      rankingList.innerHTML = "";
+      try {
+        const q = query(collection(db, "users"), orderBy("money", "desc"), limit(5));
+        const querySnapshot = await getDocs(q);
+
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          const li = document.createElement("li");
+          li.textContent = `${data.name || "名無しのボス"}: $${data.money}`;
+          rankingList.appendChild(li);
+        });
+      } catch (e) {
+        console.error("ランキング読み込みエラー:", e);
+      }
+    }
+  </script>
+</body>
+</html>
